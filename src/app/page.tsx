@@ -32,6 +32,8 @@ type Item = { id: number; isSelected: boolean };
 export default function Page() {
   const [search, setSearch] = useState<string>("");
   const [items, setItems] = useState<Item[]>([]);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  console.log(isSearching);
   const queryClient = useQueryClient();
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
@@ -56,6 +58,18 @@ export default function Page() {
   const selectMutation = useMutation({
     mutationFn: ApiService.updateSelection,
   });
+
+  useEffect(() => {
+    if (search === "") return; // если поле пустое, ничего не делать
+
+    setIsSearching(true);
+
+    const delayDebounce = setTimeout(() => {
+      refetch().finally(() => setIsSearching(false));
+    }, 500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [refetch, search]);
 
   useEffect(() => {
     if (data?.pages) {
@@ -103,11 +117,29 @@ export default function Page() {
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
         className="border p-2 w-full mb-4"
-        placeholder="Search..."
+        placeholder="Enter number from 1 to 1,000,000"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && refetch()}
+        onChange={(e) => {
+          const value = e.target.value;
+          const numericValue = value.replace(/\D/g, "");
+
+          if (
+            numericValue === "" ||
+            (Number(numericValue) >= 1 && Number(numericValue) <= 1_000_000)
+          ) {
+            setSearch(numericValue);
+            setIsSearching(true);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            refetch().finally(() => setIsSearching(false));
+          }
+        }}
       />
 
       <DndContext
@@ -135,7 +167,7 @@ export default function Page() {
       <div ref={loadMoreRef} className="h-8" />
       {isVisible && <UpButton text="Up" onClick={scrollToTop} />}
 
-      {isFetchingNextPage && <Loader />}
+      {(isFetchingNextPage || isSearching) && <Loader />}
     </div>
   );
 }
