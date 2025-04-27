@@ -33,22 +33,28 @@ export default function Page() {
   const [search, setSearch] = useState<string>("");
   const [items, setItems] = useState<Item[]>([]);
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  console.log(isSearching);
+
   const queryClient = useQueryClient();
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
-    useInfiniteQuery({
-      queryKey: ["items", search],
-      queryFn: ({ pageParam = 0 }) =>
-        ApiService.fetchItems(search, pageParam, LIMIT),
-      initialPageParam: 0,
-      getNextPageParam: (lastPage, allPages) => {
-        if (lastPage.items.length < LIMIT) {
-          return undefined;
-        }
-        return allPages.length * LIMIT;
-      },
-    });
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+    isLoading,
+  } = useInfiniteQuery({
+    queryKey: ["items", search],
+    queryFn: ({ pageParam = 0 }) =>
+      ApiService.fetchItems(search, pageParam, LIMIT),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.items.length < LIMIT) {
+        return undefined;
+      }
+      return allPages.length * LIMIT;
+    },
+  });
 
   const orderMutation = useMutation({
     mutationFn: ApiService.updateOrder,
@@ -167,7 +173,7 @@ export default function Page() {
       <div ref={loadMoreRef} className="h-8" />
       {isVisible && <UpButton text="Up" onClick={scrollToTop} />}
 
-      {(isFetchingNextPage || isSearching) && <Loader />}
+      {(isLoading || isFetchingNextPage || isSearching) && <Loader />}
     </div>
   );
 }
