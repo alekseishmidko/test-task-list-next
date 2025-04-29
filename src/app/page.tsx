@@ -30,12 +30,24 @@ const LIMIT = 20;
 type Item = { id: number; isSelected: boolean };
 
 export default function Page() {
-  const [search, setSearch] = useState<string>("");
-  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [items, setItems] = useState<Item[]>([]);
+  const [isSearchPending, setIsSearchPending] = useState(false);
 
   const queryClient = useQueryClient();
 
+  useEffect(() => {
+    setIsSearchPending(true);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setIsSearchPending(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+  useEffect(() => {
+    setItems([]);
+  }, [debouncedSearch]);
   const {
     data,
     fetchNextPage,
@@ -62,17 +74,6 @@ export default function Page() {
   const selectMutation = useMutation({
     mutationFn: ApiService.updateSelection,
   });
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  // useEffect(() => {
-  //   setItems([]);
-  // }, [debouncedSearch]);
 
   useEffect(() => {
     if (data?.pages) {
@@ -119,11 +120,11 @@ export default function Page() {
   const { isVisible, scrollToTop } = useScrollToTop(300);
 
   const isLoadingAll =
+    isSearchPending ||
     isLoading ||
     isFetchingNextPage ||
     isFetching ||
-    orderMutation.isPending ||
-    selectMutation.isPending;
+    orderMutation.isPending;
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -145,37 +146,36 @@ export default function Page() {
         }}
       />
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={items.map((item) => item.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="flex flex-col gap-2">
-            {items.map((item) => (
-              <ItemRow
-                key={item.id}
-                id={item.id}
-                selected={item.isSelected}
-                onToggle={toggleSelect}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-
-      <div ref={loadMoreRef} className="h-8" />
-
-      {isVisible && <UpButton text="Up" onClick={scrollToTop} />}
-
-      {isLoadingAll && (
-        <div className="flex justify-center mt-6">
+      {isLoadingAll ? (
+        <div className="flex justify-center mt-10">
           <Loader />
         </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={items.map((item) => item.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="flex flex-col gap-2">
+              {items.map((item) => (
+                <ItemRow
+                  key={item.id}
+                  id={item.id}
+                  selected={item.isSelected}
+                  onToggle={toggleSelect}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
+
+      <div ref={loadMoreRef} className="h-8" />
+      {isVisible && <UpButton text="Up" onClick={scrollToTop} />}
     </div>
   );
 }
