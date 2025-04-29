@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import {
   DndContext,
@@ -26,13 +27,12 @@ import { useScrollToTop } from "@/shared/hooks/useScrollToTop";
 import { UpButton } from "@/shared/components/up-button/UpButton";
 
 const LIMIT = 20;
-
 type Item = { id: number; isSelected: boolean };
 
 export default function Page() {
   const [search, setSearch] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
   const [items, setItems] = useState<Item[]>([]);
-  const [isSearching, setIsSearching] = useState<boolean>(false);
 
   const queryClient = useQueryClient();
 
@@ -41,17 +41,15 @@ export default function Page() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    refetch,
     isLoading,
+    isFetching,
   } = useInfiniteQuery({
-    queryKey: ["items", search],
+    queryKey: ["items", debouncedSearch],
     queryFn: ({ pageParam = 0 }) =>
-      ApiService.fetchItems(search, pageParam, LIMIT),
+      ApiService.fetchItems(debouncedSearch, pageParam, LIMIT),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.items.length < LIMIT) {
-        return undefined;
-      }
+      if (lastPage.items.length < LIMIT) return undefined;
       return allPages.length * LIMIT;
     },
   });
@@ -66,16 +64,15 @@ export default function Page() {
   });
 
   useEffect(() => {
-    if (search === "") return; // если поле пустое, ничего не делать
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [search]);
 
-    setIsSearching(true);
-
-    const delayDebounce = setTimeout(() => {
-      refetch().finally(() => setIsSearching(false));
-    }, 500);
-
-    return () => clearTimeout(delayDebounce);
-  }, [refetch, search]);
+  // useEffect(() => {
+  //   setItems([]);
+  // }, [debouncedSearch]);
 
   useEffect(() => {
     if (data?.pages) {
@@ -92,14 +89,13 @@ export default function Page() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over) return;
-    if (active.id !== over?.id) {
-      const oldIndex = items.findIndex((item) => item.id === active.id);
-      const newIndex = items.findIndex((item) => item.id === over.id);
-      const newOrder = arrayMove(items, oldIndex, newIndex);
-      setItems(newOrder);
-      orderMutation.mutate(newOrder.map((item) => item.id));
-    }
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = items.findIndex((item) => item.id === active.id);
+    const newIndex = items.findIndex((item) => item.id === over.id);
+    const newOrder = arrayMove(items, oldIndex, newIndex);
+    setItems(newOrder);
+    orderMutation.mutate(newOrder.map((item) => item.id));
   };
 
   const toggleSelect = (id: number) => {
@@ -119,7 +115,16 @@ export default function Page() {
     hasNextPage: !!hasNextPage,
     isFetchingNextPage,
   });
+
   const { isVisible, scrollToTop } = useScrollToTop(300);
+
+  const isLoadingAll =
+    isLoading ||
+    isFetchingNextPage ||
+    isFetching ||
+    orderMutation.isPending ||
+    selectMutation.isPending;
+
   return (
     <div className="p-6 max-w-3xl mx-auto">
       <input
@@ -130,20 +135,12 @@ export default function Page() {
         placeholder="Enter number from 1 to 1,000,000"
         value={search}
         onChange={(e) => {
-          const value = e.target.value;
-          const numericValue = value.replace(/\D/g, "");
-
+          const value = e.target.value.replace(/\D/g, "");
           if (
-            numericValue === "" ||
-            (Number(numericValue) >= 1 && Number(numericValue) <= 1_000_000)
+            value === "" ||
+            (Number(value) >= 1 && Number(value) <= 1_000_000)
           ) {
-            setSearch(numericValue);
-            setIsSearching(true);
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            refetch().finally(() => setIsSearching(false));
+            setSearch(value);
           }
         }}
       />
@@ -171,9 +168,14 @@ export default function Page() {
       </DndContext>
 
       <div ref={loadMoreRef} className="h-8" />
+
       {isVisible && <UpButton text="Up" onClick={scrollToTop} />}
 
-      {(isLoading || isFetchingNextPage || isSearching) && <Loader />}
+      {isLoadingAll && (
+        <div className="flex justify-center mt-6">
+          <Loader />
+        </div>
+      )}
     </div>
   );
 }
