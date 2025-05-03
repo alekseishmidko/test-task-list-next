@@ -27,10 +27,16 @@ export class ApiService {
     return data;
   }
 
-  static async updateOrder(order: number[]) {
-    await orderSchema.validate({ order }, { abortEarly: false });
-
-    await instance.post("/order", { order });
+  static async updateOrder(data: number[] | { search: string; ids: number[] }) {
+    if (Array.isArray(data)) {
+      await orderSchema.validate({ order: data }, { abortEarly: false });
+      return instance.post("/order", { order: data });
+    } else {
+      return instance.post("/order", {
+        search: data.search,
+        order: data.ids,
+      });
+    }
   }
 
   static async updateSelection(

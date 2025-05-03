@@ -30,24 +30,12 @@ const LIMIT = 20;
 type Item = { id: number; isSelected: boolean };
 
 export default function Page() {
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [search, setSearch] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
   const [items, setItems] = useState<Item[]>([]);
-  const [isSearchPending, setIsSearchPending] = useState(false);
 
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    setIsSearchPending(true);
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setIsSearchPending(false);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [search]);
-  useEffect(() => {
-    setItems([]);
-  }, [debouncedSearch]);
   const {
     data,
     fetchNextPage,
@@ -76,6 +64,13 @@ export default function Page() {
   });
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     if (data?.pages) {
       const newItems = data.pages.flatMap((p) => p.items);
       setItems(newItems);
@@ -96,7 +91,15 @@ export default function Page() {
     const newIndex = items.findIndex((item) => item.id === over.id);
     const newOrder = arrayMove(items, oldIndex, newIndex);
     setItems(newOrder);
-    orderMutation.mutate(newOrder.map((item) => item.id));
+
+    if (debouncedSearch) {
+      orderMutation.mutate({
+        search: debouncedSearch,
+        ids: newOrder.map((item) => item.id),
+      });
+    } else {
+      orderMutation.mutate(newOrder.map((item) => item.id));
+    }
   };
 
   const toggleSelect = (id: number) => {
@@ -119,12 +122,7 @@ export default function Page() {
 
   const { isVisible, scrollToTop } = useScrollToTop(300);
 
-  const isLoadingAll =
-    isSearchPending ||
-    isLoading ||
-    isFetchingNextPage ||
-    isFetching ||
-    orderMutation.isPending;
+  const isLoadingAll = isLoading || isFetchingNextPage || isFetching;
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -132,7 +130,7 @@ export default function Page() {
         type="text"
         inputMode="numeric"
         pattern="[0-9]*"
-        className="border p-2 w-full mb-4"
+        className={`border p-2 w-full mb-4 `}
         placeholder="Enter number from 1 to 1,000,000"
         value={search}
         onChange={(e) => {
@@ -146,36 +144,37 @@ export default function Page() {
         }}
       />
 
-      {isLoadingAll ? (
-        <div className="flex justify-center mt-10">
-          <Loader />
-        </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={items.map((item) => item.id)}
+          strategy={verticalListSortingStrategy}
         >
-          <SortableContext
-            items={items.map((item) => item.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="flex flex-col gap-2">
-              {items.map((item) => (
-                <ItemRow
-                  key={item.id}
-                  id={item.id}
-                  selected={item.isSelected}
-                  onToggle={toggleSelect}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      )}
+          <div className="flex flex-col gap-2">
+            {items.map((item) => (
+              <ItemRow
+                key={item.id}
+                id={item.id}
+                selected={item.isSelected}
+                onToggle={toggleSelect}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       <div ref={loadMoreRef} className="h-8" />
+
       {isVisible && <UpButton text="Up" onClick={scrollToTop} />}
+
+      {isLoadingAll && (
+        <div className="flex justify-center mt-6">
+          <Loader />
+        </div>
+      )}
     </div>
   );
 }
