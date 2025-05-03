@@ -82,7 +82,7 @@ export default function Page() {
       activationConstraint: { distance: 8 },
     })
   );
-
+  console.log(search);
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -92,12 +92,7 @@ export default function Page() {
     const newOrder = arrayMove(items, oldIndex, newIndex);
     setItems(newOrder);
 
-    if (debouncedSearch) {
-      orderMutation.mutate({
-        search: debouncedSearch,
-        ids: newOrder.map((item) => item.id),
-      });
-    } else {
+    if (debouncedSearch.trim() === "") {
       orderMutation.mutate(newOrder.map((item) => item.id));
     }
   };
